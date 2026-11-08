@@ -823,8 +823,7 @@ public abstract class Schema extends JsonProperties {
     private final int size;
     public FixedSchema(Name name, String doc, int size) {
       super(Type.FIXED, name, doc);
-      if (size < 0)
-        throw new IllegalArgumentException("Invalid fixed size: "+size);
+      SystemLimitException.checkMaxBytesLength(size);
       this.size = size;
     }
     public int getFixedSize() { return size; }

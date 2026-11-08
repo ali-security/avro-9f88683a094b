@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 import org.apache.avro.AvroRuntimeException;
+import org.apache.avro.SystemLimitException;
 import org.apache.avro.util.Utf8;
 
 /** An {@link Decoder} for binary-format data.
@@ -50,6 +51,7 @@ public class BinaryDecoder extends Decoder {
   private int minPos = 0;
   private int pos = 0;
   private int limit = 0;
+  private long collectionCount = 0L;
 
   byte[] getBuf() { return buf; }
   int getPos() { return pos; }
@@ -256,7 +258,7 @@ public class BinaryDecoder extends Decoder {
 
   @Override
   public Utf8 readString(Utf8 old) throws IOException {
-    int length = readInt();
+    int length = SystemLimitException.checkMaxStringLength(readInt());
     Utf8 result = (old != null ? old : new Utf8());
     result.setByteLength(length);
     if (0 != length) {
@@ -279,7 +281,7 @@ public class BinaryDecoder extends Decoder {
 
   @Override
   public ByteBuffer readBytes(ByteBuffer old) throws IOException {
-    int length = readInt();
+    int length = SystemLimitException.checkMaxBytesLength(readInt());
     ByteBuffer result;
     if (old != null && length <= old.capacity()) {
       result = old;
@@ -390,12 +392,15 @@ public class BinaryDecoder extends Decoder {
 
   @Override
   public long readArrayStart() throws IOException {
-    return doReadItemCount();
+    collectionCount = SystemLimitException.checkMaxCollectionLength(0L, doReadItemCount());
+    return collectionCount;
   }
 
   @Override
   public long arrayNext() throws IOException {
-    return doReadItemCount();
+    long length = doReadItemCount();
+    collectionCount = SystemLimitException.checkMaxCollectionLength(collectionCount, length);
+    return length;
   }
 
   @Override
@@ -405,12 +410,15 @@ public class BinaryDecoder extends Decoder {
 
   @Override
   public long readMapStart() throws IOException {
-    return doReadItemCount();
+    collectionCount = SystemLimitException.checkMaxCollectionLength(0L, doReadItemCount());
+    return collectionCount;
   }
 
   @Override
   public long mapNext() throws IOException {
-    return doReadItemCount();
+    long length = doReadItemCount();
+    collectionCount = SystemLimitException.checkMaxCollectionLength(collectionCount, length);
+    return length;
   }
 
   @Override

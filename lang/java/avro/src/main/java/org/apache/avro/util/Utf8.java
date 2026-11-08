@@ -21,6 +21,7 @@ import java.nio.charset.Charset;
 import java.io.UnsupportedEncodingException;
 
 import org.apache.avro.io.BinaryData;
+import org.apache.avro.SystemLimitException;
 
 /** A Utf8 string.  Unlike {@link String}, instances are mutable.  This is more
  * efficient than {@link String} when reading or writing a sequence of values,
@@ -38,6 +39,7 @@ public class Utf8 implements Comparable<Utf8>, CharSequence {
   public Utf8(String string) {
     this.bytes = getBytesFor(string);
     this.length = bytes.length;
+    SystemLimitException.checkMaxStringLength(this.length);
     this.string = string;
   }
   
@@ -51,6 +53,7 @@ public class Utf8 implements Comparable<Utf8>, CharSequence {
   public Utf8(byte[] bytes) {
     this.bytes = bytes;
     this.length = bytes.length;
+    SystemLimitException.checkMaxStringLength(this.length);
   }
 
   /** Return UTF-8 encoded bytes.
@@ -74,6 +77,7 @@ public class Utf8 implements Comparable<Utf8>, CharSequence {
   /** Set length in bytes.  Should called whenever byte content changes, even
    * if the length does not change, as this also clears the cached String. */
   public Utf8 setByteLength(int newLength) {
+    SystemLimitException.checkMaxStringLength(newLength);
     if (this.bytes.length < newLength) {
       byte[] newBytes = new byte[newLength];
       System.arraycopy(bytes, 0, newBytes, 0, this.length);
@@ -88,6 +92,7 @@ public class Utf8 implements Comparable<Utf8>, CharSequence {
   public Utf8 set(String string) {
     this.bytes = getBytesFor(string);
     this.length = bytes.length;
+    SystemLimitException.checkMaxStringLength(this.length);
     this.string = string;
     return this;
   }

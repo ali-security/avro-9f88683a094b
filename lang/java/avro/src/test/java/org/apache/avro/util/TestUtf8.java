@@ -22,6 +22,8 @@ import java.io.UnsupportedEncodingException;
 import junit.framework.Assert;
 
 import org.junit.Test;
+import org.apache.avro.SystemLimitException;
+import org.apache.avro.TestSystemLimitException;
 
 import static junit.framework.Assert.assertSame;
 import static org.junit.Assert.assertEquals;
@@ -47,5 +49,34 @@ public class TestUtf8 {
     u.setByteLength(4);
     assertEquals(4, u.getByteLength());
     assertSame(content, u.getBytes());
+  }
+
+  @Test
+  public void oversizeUtf8() {
+    Utf8 u = new Utf8();
+    u.setByteLength(1024);
+    assertEquals(1024, u.getByteLength());
+    try {
+        u.setByteLength(TestSystemLimitException.MAX_ARRAY_VM_LIMIT + 1);
+        Assert.fail("Expected UnsupportedOperationException to be thrown");
+    } catch (UnsupportedOperationException e) {
+    }
+
+    try {
+      System.setProperty(SystemLimitException.MAX_STRING_LENGTH_PROPERTY, Long.toString(1000L));
+      TestSystemLimitException.resetLimits();
+
+      Exception ex = null;
+      try {
+        u.setByteLength(1024);
+        Assert.fail("Expected SystemLimitException to be thrown");
+      } catch (SystemLimitException e) {
+        ex = e;
+      }
+      assertEquals("String length 1024 exceeds maximum allowed", ex.getMessage());
+    } finally {
+      System.clearProperty(SystemLimitException.MAX_STRING_LENGTH_PROPERTY);
+      TestSystemLimitException.resetLimits();
+    }
   }
 }
