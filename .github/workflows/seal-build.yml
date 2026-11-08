@@ -1,0 +1,81 @@
+name: seal-build
+
+# Apache Avro 1.7.7 ships no GitHub Actions CI; this workflow reproduces the
+# project's own Java build (BUILD.txt / build.sh: `cd lang/java; mvn test`,
+# release jars built with Maven + JDK 7 targeting Java 1.6).
+
+on:
+  workflow_dispatch:
+    inputs:
+      test-filter:
+        description: "Surefire -Dtest selector; empty runs the full suite"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    defaults:
+      run:
+        working-directory: lang/java
+    env:
+      MAVEN_OPTS: -Xmx2g -XX:MaxPermSize=512m -Dhttps.protocols=TLSv1.2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 7
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "7"
+
+      - name: Install Maven 3.3.9
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz | tar xz
+          echo "${{ runner.temp }}/apache-maven-3.3.9/bin" >> "$GITHUB_PATH"
+
+      - name: Toolchain versions
+        run: |
+          java -version
+          mvn -version
+
+      - name: Build and test (avro, compiler, maven-plugin, ipc)
+        env:
+          TEST_FILTER: ${{ inputs.test-filter }}
+        run: |
+          set -e
+          EXTRA=""
+          if [ -n "$TEST_FILTER" ]; then
+            EXTRA="-Dtest=$TEST_FILTER -DfailIfNoTests=false"
+          fi
+          mvn -B -e clean install -pl avro,compiler,maven-plugin,ipc -am \
+            -Dcheckstyle.skip=true -Dmaven.javadoc.skip=true -Dgpg.skip=true \
+            $EXTRA
+
+      - name: Test summary and skipped tests
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as ET
+          tot = fail = err = skip = 0
+          for f in glob.glob('**/target/surefire-reports/TEST-*.xml', recursive=True):
+              r = ET.parse(f).getroot()
+              tot += int(r.get('tests', 0)); fail += int(r.get('failures', 0))
+              err += int(r.get('errors', 0)); skip += int(r.get('skipped', 0))
+              for tc in r.iter('testcase'):
+                  s = tc.find('skipped')
+                  if s is not None:
+                      print("SKIPPED %s.%s: %s" % (tc.get('classname'), tc.get('name'), s.get('message') or '(no message; @Ignore without reason)'))
+          print("TOTAL tests=%d passed=%d failures=%d errors=%d skipped=%d" % (tot, tot - fail - err - skip, fail, err, skip))
+          EOF
+
+      - name: Upload avro jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: avro-jars
+          path: |
+            lang/java/avro/target/avro-1.7.7.jar
+            lang/java/avro/target/avro-1.7.7-tests.jar
+          if-no-files-found: error

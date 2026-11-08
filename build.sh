@@ -86,7 +86,7 @@ case "$target" in
         SRC_DIR=avro-src-$VERSION
 
 	rm -rf build/${SRC_DIR}
-	svn export --force . build/${SRC_DIR}
+	rsync -av --progress --exclude build/ --exclude .git --exclude ci . build/${SRC_DIR}
 
 	#runs RAT on artifacts
         mvn -N -P rat antrun:run
